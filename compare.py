@@ -4,22 +4,25 @@ import re
 import difflib
 
 # Find the first entry by skipping table of contents
-def find_2nd(string, substring):
-    return string.find(substring, string.find(substring) + 1)
+def find_2nd(string, substring, start):
+    return string.find(substring, start + 1)
 
 # Return list of strings such that each string is one entry in the document
 def preprocess(name):
     file = textract.process(name)
     text = file.decode()
-    text = text[find_2nd(text, "第一章"):]
+    start = text.find("第一章")
+    if start != -1:
+        text = text[find_2nd(text, "第一章", start):]
+    print(text)
     texts = re.findall(r'第.{1,5}[章|条][\s\S]*?\s(?=第.+[章|条])', text)
     texts.append(text[text.rfind('第'):])
     return texts
 
 if __name__ == "__main__":
     # specify file name to compare
-    old_texts = preprocess("中华人民共和国安全生产法（2014年修订）.docx")
-    new_texts = preprocess("中华人民共和国安全生产法（2021年修订）.docx")
+    old_texts = preprocess("目录1.docx")
+    new_texts = preprocess("目录2.docx")
 
     # create output document for comparison
     output = docx.Document()
