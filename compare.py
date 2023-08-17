@@ -2,6 +2,7 @@ import textract
 import docx 
 import re 
 import difflib
+import sys
 
 # Find the first entry by skipping table of contents
 def find_2nd(string, substring, start):
@@ -12,6 +13,8 @@ def preprocess(name):
     file = textract.process(name)
     text = file.decode()
     start = text.find("第一章")
+    if start == -1:
+        raise ValueError('The format of file given is not supported.')
     second_occurence = text.find("第一章", start + 1)
     if second_occurence != -1:
         text = text[second_occurence:]
@@ -66,17 +69,33 @@ def add_both(oldp, newp, old_text, new_text):
 
 
 if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("USAGE: python3 compare.py old_file.docx new_file.docx")
+        sys.exit(1)
+
+    if sys.argv[1][-4:] != 'docx' or sys.argv[2][-4:] != 'docx':
+        print('Files need to be in docx format')
+        sys.exit(1)
+
     # specify file name to compare
-    old_texts = preprocess("目录1.docx")
-    new_texts = preprocess("目录2.docx")
+    try:
+        old_texts = preprocess(sys.argv[1])
+        new_texts = preprocess(sys.argv[2])
+    except ValueError as err:
+        print(err.args[0])
+        sys.exit(1)
 
     # create output document for comparison
     output = docx.Document()
     table = output.add_table(rows=1, cols=2, style="Table Grid")
     row = table.rows[0]
-    # manually enter the year of each document
-    row.cells[0].text = '2014'
-    row.cells[1].text = '2021'
+    # get the year of each document
+    year_pos = old_texts[-1].find('年')
+    old_year = old_texts[-1][year_pos-4:year_pos]
+    year_pos = new_texts[-1].find('年')
+    new_year = new_texts[-1][year_pos-4:year_pos]
+    row.cells[0].text = old_year
+    row.cells[1].text = new_year
     # i keeps track of old document law and j keeps track of new document law
     i = 0
     j = 0
