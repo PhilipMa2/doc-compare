@@ -37,9 +37,7 @@ def only_add_old(oldp, newp):
     run = newp.add_run('移 除')
     run.font.color.rgb = docx.shared.RGBColor(128,21,0)
 
-def add_both(oldp, newp, old_text, new_text):
-    diff = difflib.ndiff(old_text, new_text)
-    # find the difference ratio of two entries
+def different(old_text, new_text):
     seq_mat = difflib.SequenceMatcher()
     seq_mat.set_seqs(old_text, new_text)
     ratio = seq_mat.ratio()
@@ -47,10 +45,14 @@ def add_both(oldp, newp, old_text, new_text):
     # if the lengths of two entries are substantially different, then it's 
     # possible for them to be the same entry even if difference ratio is less
     # than 0.5. For example, see entry 113 (2021) and 108 (2014)
-    if (ratio < 0.5 and len_diff < 200)  \
-        or (len_diff >= 200 and ratio < 0.1):
-        only_add_new(oldp, newp)
-        return False
+    return (ratio < 0.5 and len_diff < 200) or (len_diff >= 200 and ratio < 0.1)
+
+def add_both(oldp, newp, old_text, new_text, old_text_next=None, new_text_next=None):
+    diff = difflib.ndiff(old_text, new_text)
+    # find the difference ratio of two entries
+    if different(old_text, new_text) and (not old_text_next or not new_text_next or different(old_text_next, new_text_next)):
+            only_add_new(oldp, newp)
+            return False
     else:
         for k, s in enumerate(diff):
             # same content
@@ -113,7 +115,10 @@ if __name__ == "__main__":
             only_add_old(oldp, newp)
             i += 1
         else:
-            both_added = add_both(oldp, newp, old_texts[i], new_texts[j])
+            if i < len(old_texts) - 1 and j < len(new_texts) - 1:
+                both_added = add_both(oldp, newp, old_texts[i], new_texts[j], old_texts[i+1], new_texts[j+1])  
+            else:
+                both_added = add_both(oldp, newp, old_texts[i], new_texts[j]) 
             if both_added:
                 i += 1
             j += 1
