@@ -3,6 +3,7 @@ import docx
 import re 
 import difflib
 import sys
+from pypdf import PdfReader
 
 # Find the first entry by skipping table of contents
 def find_2nd(string, substring, start):
@@ -10,8 +11,18 @@ def find_2nd(string, substring, start):
 
 # Return list of strings such that each string is one entry in the document
 def preprocess(name):
-    file = textract.process(name)
-    text = file.decode()
+    format = name[name.rfind('.')+1:]
+    text = ''
+    if format == 'docx':
+        file = textract.process(name)
+        text = file.decode()
+    elif format == 'pdf':
+        file = PdfReader(name)
+        for page in file.pages:
+            text += page.extract_text()
+    else:
+        raise ValueError('The files needs to be a docx or pdf.')
+
     start = text.find("第一章")
     if start == -1:
         raise ValueError('The format of file given is not supported.')
@@ -73,11 +84,15 @@ def add_both(oldp, newp, old_text, new_text, old_text_next=None, new_text_next=N
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("USAGE: python3 compare.py old_file.docx new_file.docx")
+        print("USAGE: python3 compare.py old_file.pdf new_file.docx")
+        print("USAGE: python3 compare.py old_file.docx new_file.pdf")
+        print("USAGE: python3 compare.py old_file.pdf new_file.pdf")
+
         sys.exit(1)
 
-    if sys.argv[1][-4:] != 'docx' or sys.argv[2][-4:] != 'docx':
-        print('Files need to be in docx format')
-        sys.exit(1)
+    # if sys.argv[1][-4:] != 'docx' or sys.argv[2][-4:] != 'docx':
+    #     print('Files need to be in docx format')
+    #     sys.exit(1)
 
     # specify file name to compare
     try:
