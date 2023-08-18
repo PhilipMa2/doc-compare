@@ -19,13 +19,17 @@ def preprocess(name):
     elif format == 'pdf':
         file = PdfReader(name)
         for page in file.pages:
-            text += page.extract_text()
+            content = page.extract_text()
+            match = re.search('\D', content)
+            text += ' ' + content[match.start():]
     else:
         raise ValueError('The files needs to be a docx or pdf.')
 
     start = text.find("第一章")
     if start == -1:
-        raise ValueError('The format of file given is not supported.')
+        start = text.find("第一条")
+        if start == -1:
+            raise ValueError('The format of file given is not supported.')
     second_occurence = text.find("第一章", start + 1)
     if second_occurence != -1:
         text = text[second_occurence:]
@@ -61,7 +65,7 @@ def different(old_text, new_text):
 def add_both(oldp, newp, old_text, new_text, old_text_next=None, new_text_next=None):
     diff = difflib.ndiff(old_text, new_text)
     # find the difference ratio of two entries
-    if different(old_text, new_text) and (not old_text_next or not new_text_next or different(old_text_next, new_text_next)):
+    if not basic and (different(old_text, new_text) and (not old_text_next or not new_text_next or different(old_text_next, new_text_next))):
             only_add_new(oldp, newp)
             return False
     else:
@@ -82,11 +86,16 @@ def add_both(oldp, newp, old_text, new_text, old_text_next=None, new_text_next=N
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("USAGE: python3 compare.py old_file.docx new_file.docx")
-        print("USAGE: python3 compare.py old_file.pdf new_file.docx")
-        print("USAGE: python3 compare.py old_file.docx new_file.pdf")
-        print("USAGE: python3 compare.py old_file.pdf new_file.pdf")
+    basic = False
+    if len(sys.argv) == 3:
+        old_pos = 1
+        new_pos = 2
+    elif len(sys.argv) == 4:
+        old_pos = 2
+        new_pos = 3
+        basic = True
+    else:
+        print("USAGE: python3 compare.py [-basic] <old_file.[docx|pdf]> <new_file.[docx|pdf]>")
 
         sys.exit(1)
 
@@ -96,8 +105,8 @@ if __name__ == "__main__":
 
     # specify file name to compare
     try:
-        old_texts = preprocess(sys.argv[1])
-        new_texts = preprocess(sys.argv[2])
+        old_texts = preprocess(sys.argv[old_pos])
+        new_texts = preprocess(sys.argv[new_pos])
     except ValueError as err:
         print(err.args[0])
         sys.exit(1)
@@ -128,7 +137,7 @@ if __name__ == "__main__":
             j += 1
         elif not old_section_end and new_section_end:
             only_add_old(oldp, newp)
-            i += 1
+            i += 1            
         else:
             if i < len(old_texts) - 1 and j < len(new_texts) - 1:
                 both_added = add_both(oldp, newp, old_texts[i], new_texts[j], old_texts[i+1], new_texts[j+1])  
