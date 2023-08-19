@@ -10,7 +10,7 @@ def find_2nd(string, substring, start):
     return string.find(substring, start + 1)
 
 # Return list of strings such that each string is one entry in the document
-def preprocess(name):
+def preprocess(name, sections):
     format = name[name.rfind('.')+1:]
     text = ''
     if format == 'docx':
@@ -38,6 +38,9 @@ def preprocess(name):
     texts = re.findall(r'第.{1,5}[章|条][\s\S]*?\s(?=第.+[章|条])', text)
     last_match = re.search(r'条.{1,5}第', text[::-1])
     texts.append(text[len(text) - last_match.end():])
+    for i in range(len(texts)):
+        if re.search('^第.{1,5}章', texts[i]) is not None:
+            sections.append(texts[i])
     return texts
 
 def only_add_new(oldp, newp):
@@ -62,6 +65,14 @@ def different(old_text, new_text):
     # than 0.5. For example, see entry 113 (2021) and 108 (2014)
     return (ratio < 0.5 and len_diff < 200) or (len_diff >= 200 and ratio < 0.1)
 
+def different_section(old_sec, new_sec):
+    seq_mat = difflib.SequenceMatcher()
+    seq_mat.set_seqs(old_sec, new_sec)
+    ratio = seq_mat.ratio()
+    # len_diff = abs(len(old_sec) - len(new_sec))
+
+    return ratio < 0.7
+
 def add_both(oldp, newp, old_text, new_text, old_text_next=None, new_text_next=None):
     diff = difflib.ndiff(old_text, new_text)
     # find the difference ratio of two entries
@@ -83,6 +94,24 @@ def add_both(oldp, newp, old_text, new_text, old_text_next=None, new_text_next=N
                 run = oldp.add_run(s[-1])
                 run.font.color.rgb = docx.shared.RGBColor(0,102,51)
         return True
+    
+def match_section(keys, values):
+    section_dict = {}
+    prev_match = 0
+    for key in keys:
+        # print(key)
+        for i in range(prev_match, len(values)):
+            if not different_section(key, values[i]):
+                section_dict[key] = values[i]
+                prev_match = i + 1
+                break
+        if key not in section_dict:
+            section_dict[key] = values[prev_match]
+            prev_match += 1
+        # print(section_dict[key])
+        # print(different_section(key, section_dict[key]))
+        # print('end')
+    return section_dict
 
 
 if __name__ == "__main__":
@@ -105,11 +134,18 @@ if __name__ == "__main__":
 
     # specify file name to compare
     try:
-        old_texts = preprocess(sys.argv[old_pos])
-        new_texts = preprocess(sys.argv[new_pos])
+        old_sections = []
+        new_sections = []
+        old_texts = preprocess(sys.argv[old_pos], old_sections)
+        new_texts = preprocess(sys.argv[new_pos], new_sections)
     except ValueError as err:
         print(err.args[0])
         sys.exit(1)
+
+    if len(old_sections) <= len(new_sections):
+        section_dict = match_section(old_sections, new_sections)
+    else:
+        section_dict = match_section(new_sections, old_sections)
 
     # create output document for comparison
     output = docx.Document()
@@ -137,7 +173,23 @@ if __name__ == "__main__":
             j += 1
         elif not old_section_end and new_section_end:
             only_add_old(oldp, newp)
-            i += 1            
+            i += 1    
+        elif old_section_end and new_section_end:
+            if len(old_sections) <= len(new_sections):
+                if section_dict[old_texts[i]] == new_texts[j]:
+                    add_both(oldp, newp, old_texts[i], new_texts[j])
+                    i += 1
+                    j += 1
+                else:
+                    only_add_new(oldp, newp)
+                    j += 1
+            elif section_dict[new_texts[j]] == old_texts[i]:
+                add_both(oldp, newp, old_texts[i], new_texts[j])
+                i += 1
+                j += 1
+            else:
+                only_add_old(oldp, newp)
+                i += 1
         else:
             if i < len(old_texts) - 1 and j < len(new_texts) - 1:
                 both_added = add_both(oldp, newp, old_texts[i], new_texts[j], old_texts[i+1], new_texts[j+1])  
